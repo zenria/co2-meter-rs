@@ -1,0 +1,18 @@
+[package]
+name = "co2-meter"
+version = "0.1.0"
+authors = ["Philippe GASSMANN <philippe.gassmann@linkfluence.com>"]
+edition = "2018"
+
+[dependencies]
+serialport = { git = "https://github.com/zenria/serialport-rs.git", branch="3.2.0-hacked_for_rbpi" }
+clap = "2"
+mh-z19 = "0.1.0"
+log = "0.4"
+env_logger = "0.6"
+actix-web = "0.7"
+structopt = "0.2"
+actix="0.7"
+futures="0.1"
+chrono="0.4"
+error-chain = "0.12"
