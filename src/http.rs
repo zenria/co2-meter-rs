@@ -19,11 +19,7 @@ fn debug(
                 error!("unable to get history {}", e);
                 actix_web::Error::from(e)
             })
-            .and_then(|history| {
-                Ok(HttpResponse::Ok()
-                    .content_type("text/plain")
-                    .body(format!("{}", history)))
-            }),
+            .and_then(|history| Ok(HttpResponse::Ok().content_type("text/plain").body(history))),
     )
 }
 pub fn launch_http_server(bind_address: &str, mhz19_datastore: Addr<DataStore<MHZ19Response>>) {

@@ -25,7 +25,7 @@ impl MqttConfig {
     fn normalize_base_topic(base_topic: &str) -> String {
         let mut normalized_base_topic = String::with_capacity(base_topic.len() + 1);
         normalized_base_topic.push_str(base_topic);
-        if !base_topic.ends_with("/") {
+        if !base_topic.ends_with('/') {
             normalized_base_topic.push('/');
         }
         normalized_base_topic
