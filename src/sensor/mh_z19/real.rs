@@ -47,7 +47,7 @@ impl Handler<ReadMessage<MHZ19Response, MHZ19SensorError>> for RealMHZ19Sensor {
     ) -> Self::Result {
         let mut serial_buf: Vec<u8> = vec![0; 9];
         self.opened_port
-            .write(mh_z19::READ_GAS_CONCENTRATION_COMMAND_ON_DEV1_PACKET)?;
+            .write_all(mh_z19::READ_GAS_CONCENTRATION_COMMAND_ON_DEV1_PACKET)?;
 
         let bytes_read = self.opened_port.read(serial_buf.as_mut_slice())?;
         Ok(MHZ19Response {
