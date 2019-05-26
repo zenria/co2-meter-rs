@@ -1,8 +1,9 @@
 [package]
 name = "co2-meter"
 version = "0.1.0"
-authors = ["Philippe GASSMANN <philippe.gassmann@linkfluence.com>"]
+authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/zenria/co2-meter-rs"
 
 [dependencies]
 serialport = { git = "https://github.com/zenria/serialport-rs.git", branch="3.2.0-hacked_for_rbpi" }
