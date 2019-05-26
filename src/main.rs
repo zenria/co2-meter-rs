@@ -8,6 +8,7 @@ extern crate error_chain;
 
 use std::time::Duration;
 
+use crate::mqtt::MqttConfig;
 use crate::sensor::mh_z19::{MockMHZ19Sensor, RealMHZ19Sensor};
 use actix::prelude::*;
 use env_logger::Env;
@@ -15,6 +16,7 @@ use structopt::StructOpt;
 
 mod datastore;
 mod http;
+mod mqtt;
 mod sensor;
 
 #[derive(StructOpt, Debug)]
@@ -36,6 +38,12 @@ struct Opt {
     /// The serial port name or device path (eg: /dev/ttyS0 or COM3)
     #[structopt(name = "serial_port")]
     serial_port: String,
+    #[structopt(long = "mqtt-port", default_value = "1883")]
+    mqtt_port: u16,
+    #[structopt(long = "mqtt-host", default_value = "mosquitto")]
+    mqtt_host: String,
+    #[structopt(long = "mqtt-base-topic", default_value = "co2-meter/dev")]
+    mqtt_base_topic: String,
 }
 
 fn main() {
@@ -55,11 +63,23 @@ fn main() {
     debug!("Starting sensor actor");
     let read_interval = Duration::from_secs(opt.read_interval_secs);
     let data_store = datastore::DataStore::new(opt.debug_history_size).start();
-
+    let mqtt_sender = {
+        let mqtt_host = opt.mqtt_host.clone();
+        let mqtt_port = opt.mqtt_port;
+        let mqtt_base_topic = opt.mqtt_base_topic.clone();
+        SyncArbiter::start(1, move || {
+            mqtt::MqttSender::new(MqttConfig::new(
+                mqtt_host.clone(),
+                mqtt_port,
+                mqtt_base_topic.clone(),
+            ))
+        })
+    };
     if opt.mock_serial {
         sensor::SensorReader::new(
             SyncArbiter::start(1, || MockMHZ19Sensor),
             data_store.clone(),
+            mqtt_sender.clone(),
             read_interval,
         )
         .start();
@@ -68,6 +88,7 @@ fn main() {
         sensor::SensorReader::new(
             SyncArbiter::start(1, move || RealMHZ19Sensor::new(serial_port.clone())),
             data_store.clone(),
+            mqtt_sender.clone(),
             read_interval,
         )
         .start();
