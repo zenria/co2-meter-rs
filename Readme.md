@@ -1,9 +1,9 @@
 # co2-meter-rs
 
-Reads data from Winsen MH-Z19 CO2 sensors.  
+Reads data from Winsen MH-Z19 CO2 sensors, publish them though MQTT. 
 
 Target: 
-- sensor host running the project: Raspberry PI
+- sensor host running the project: Raspberry PI + Winsen MH-Z19 plugged to the GPIO serial port
 - reporting backend: MQTT + Jeedom
 
 Part of this code tries to be a bit generic so it might be a good working base for IOT stuff running on raspberry
