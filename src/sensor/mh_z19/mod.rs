@@ -7,7 +7,7 @@ use crate::mqtt::MqttData;
 use actix::Message;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Message)]
 pub struct MHZ19Response {
     pub co2_concentration_ppm: u32,
     pub serial_port: String,
@@ -32,8 +32,4 @@ impl MqttData for MHZ19Response {
         );
         ret
     }
-}
-
-impl Message for MHZ19Response {
-    type Result = ();
 }

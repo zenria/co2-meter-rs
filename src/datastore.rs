@@ -75,25 +75,14 @@ where
     type Context = Context<Self>;
 }
 
-pub struct StoreData<D>(pub D)
+impl<D> Handler<D> for DataStore<D>
 where
-    D: Debug + 'static;
-
-impl<D> Message for StoreData<D>
-where
-    D: Debug + 'static,
-{
-    type Result = ();
-}
-
-impl<D> Handler<StoreData<D>> for DataStore<D>
-where
-    D: Debug + 'static,
+    D: Debug + 'static + Message<Result = ()>,
 {
     type Result = ();
 
-    fn handle(&mut self, msg: StoreData<D>, ctx: &mut Self::Context) -> Self::Result {
-        self.insert(msg.0);
+    fn handle(&mut self, msg: D, ctx: &mut Self::Context) -> Self::Result {
+        self.insert(msg);
     }
 }
 

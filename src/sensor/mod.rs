@@ -1,6 +1,6 @@
-use crate::datastore::{DataStore, StoreData};
+use crate::broadcast::Broadcast;
+use crate::broadcast::BroadcastableMessage;
 use crate::mqtt::MqttData;
-use crate::mqtt::MqttSender;
 use actix::prelude::*;
 use futures::future::Future;
 use std::error::Error;
@@ -42,11 +42,10 @@ where
     A: Actor<Context = SyncContext<A>>,
     A: Handler<ReadMessage<R, E>>,
     E: Error + 'static + Send,
-    R: 'static + Send + Debug,
+    R: BroadcastableMessage + Debug + MqttData,
 {
     sensor: Addr<A>,
-    data_store: Addr<DataStore<R>>,
-    mqtt_sender: Addr<MqttSender>,
+    sensor_services: Addr<Broadcast<R>>,
     read_interval: Duration,
     _error: PhantomData<E>,
     _response: PhantomData<R>,
@@ -56,35 +55,26 @@ where
     A: Actor<Context = SyncContext<A>>,
     A: Handler<ReadMessage<R, E>>,
     E: Error + 'static + Send,
-    R: 'static + Send + Debug + MqttData + Clone,
+    R: BroadcastableMessage + Debug + MqttData,
 {
     pub fn new(
         sensor: Addr<A>,
-        data_store: Addr<DataStore<R>>,
-        mqtt_sender: Addr<MqttSender>,
+        sensor_services: Addr<Broadcast<R>>,
         read_interval: Duration,
     ) -> Self {
         SensorReader {
             sensor,
-            data_store,
-            mqtt_sender,
+            sensor_services,
             read_interval,
             _error: PhantomData,
             _response: PhantomData,
         }
     }
 
-    fn store_data(&self, data: R) -> impl ActorFuture<Item = (), Error = (), Actor = Self> {
-        self.data_store
-            .send(StoreData(data))
-            .map_err(|e| error!("Unable to send data to datastore {}", e))
-            .into_actor(self)
-    }
-
-    fn send_to_mqtt(&self, data: R) -> impl ActorFuture<Item = (), Error = (), Actor = Self> {
-        self.mqtt_sender
+    fn send_to_services(&self, data: R) -> impl ActorFuture<Item = (), Error = (), Actor = Self> {
+        self.sensor_services
             .send(data)
-            .map_err(|e| error!("Unable to send data to mqtt_sender {}", e))
+            .map_err(|e| error!("Unable to send data to sensor services {}", e))
             .into_actor(self)
     }
 
@@ -107,9 +97,7 @@ where
                 }
             })
             .and_then(|data: R, reader: &mut SensorReader<A, R, E>, ctx| {
-                reader
-                    .store_data(data.clone())
-                    .and_then(|_, reader, _| reader.send_to_mqtt(data))
+                reader.send_to_services(data)
             })
             .spawn(ctx);
     }
@@ -120,7 +108,7 @@ where
     A: Actor<Context = SyncContext<A>>,
     A: Handler<ReadMessage<R, E>>,
     E: Error + 'static + Send,
-    R: 'static + Send + Debug + MqttData + Clone,
+    R: BroadcastableMessage + Debug + MqttData,
 {
     type Context = Context<Self>;
 

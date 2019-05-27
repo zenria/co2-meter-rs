@@ -8,15 +8,18 @@ extern crate error_chain;
 
 use std::time::Duration;
 
+use crate::broadcast::{Broadcast, RegisterRecipient};
+use crate::log_debug::LogDebug;
 use crate::mqtt::MqttConfig;
 use crate::sensor::mh_z19::{MockMHZ19Sensor, RealMHZ19Sensor};
 use actix::prelude::*;
 use env_logger::Env;
 use structopt::StructOpt;
 
-//mod broadcast;
+mod broadcast;
 mod datastore;
 mod http;
+mod log_debug;
 mod mqtt;
 mod sensor;
 
@@ -76,11 +79,15 @@ fn main() {
             ))
         })
     };
+    let broadcast = Broadcast::new().start();
+    broadcast.do_send(RegisterRecipient(mqtt_sender.recipient()));
+    broadcast.do_send(RegisterRecipient(LogDebug::new().start().into()));
+    broadcast.do_send(RegisterRecipient(data_store.clone().recipient()));
+
     if opt.mock_serial {
         sensor::SensorReader::new(
             SyncArbiter::start(1, || MockMHZ19Sensor),
-            data_store.clone(),
-            mqtt_sender.clone(),
+            broadcast,
             read_interval,
         )
         .start();
@@ -88,15 +95,14 @@ fn main() {
         let serial_port = opt.serial_port.clone();
         sensor::SensorReader::new(
             SyncArbiter::start(1, move || RealMHZ19Sensor::new(serial_port.clone())),
-            data_store.clone(),
-            mqtt_sender.clone(),
+            broadcast,
             read_interval,
         )
         .start();
     }
     debug!("Starting http server");
 
-    http::launch_http_server(&opt.bind_address, data_store.clone());
+    http::launch_http_server(&opt.bind_address, data_store);
 
     info!(
         "CO2 Meter started, reading sensor every {}s.",
