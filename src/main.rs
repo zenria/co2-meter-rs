@@ -9,7 +9,6 @@ extern crate error_chain;
 use std::time::Duration;
 
 use crate::broadcast::{Broadcast, RegisterRecipient};
-use crate::log_debug::LogDebug;
 use crate::mqtt::MqttConfig;
 use crate::sensor::mh_z19::{MockMHZ19Sensor, RealMHZ19Sensor};
 use actix::prelude::*;
@@ -19,7 +18,6 @@ use structopt::StructOpt;
 mod broadcast;
 mod datastore;
 mod http;
-mod log_debug;
 mod mqtt;
 mod sensor;
 
@@ -81,7 +79,6 @@ fn main() {
     };
     let broadcast = Broadcast::new().start();
     broadcast.do_send(RegisterRecipient(mqtt_sender.recipient()));
-    broadcast.do_send(RegisterRecipient(LogDebug::new().start().into()));
     broadcast.do_send(RegisterRecipient(data_store.clone().recipient()));
 
     if opt.mock_serial {
