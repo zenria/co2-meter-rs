@@ -29,6 +29,7 @@ pub fn launch_http_server(bind_address: &str, mhz19_datastore: Addr<DataStore<MH
         })
         .resource("/debug", |r| r.f(debug))
     })
+    .workers(1)
     .bind(&bind_address)
     .unwrap()
     .start();
