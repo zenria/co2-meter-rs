@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::broadcast::{Broadcast, RegisterRecipient};
 use crate::mqtt::MqttConfig;
-use crate::sensor::mh_z19::{MockMHZ19Sensor, RealMHZ19Sensor};
+use crate::sensor::mh_z19::{MHZ19Response, MockMHZ19Sensor, RealMHZ19Sensor};
 use actix::prelude::*;
 use env_logger::Env;
 use structopt::StructOpt;
@@ -77,22 +77,18 @@ fn main() {
             ))
         })
     };
-    let broadcast = Broadcast::new().start();
-    broadcast.do_send(RegisterRecipient(mqtt_sender.recipient()));
-    broadcast.do_send(RegisterRecipient(data_store.clone().recipient()));
+    let sensor_data_listener_manager = System::current()
+        .registry()
+        .get::<Broadcast<MHZ19Response>>();
+    sensor_data_listener_manager.do_send(RegisterRecipient(mqtt_sender.recipient()));
+    sensor_data_listener_manager.do_send(RegisterRecipient(data_store.clone().recipient()));
 
     if opt.mock_serial {
-        sensor::SensorReader::new(
-            SyncArbiter::start(1, || MockMHZ19Sensor),
-            broadcast,
-            read_interval,
-        )
-        .start();
+        sensor::SensorReader::new(SyncArbiter::start(1, || MockMHZ19Sensor), read_interval).start();
     } else {
         let serial_port = opt.serial_port.clone();
         sensor::SensorReader::new(
             SyncArbiter::start(1, move || RealMHZ19Sensor::new(serial_port.clone())),
-            broadcast,
             read_interval,
         )
         .start();

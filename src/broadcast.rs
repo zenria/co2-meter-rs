@@ -9,6 +9,7 @@ impl<M> BroadcastableMessage for M where M: Message<Result = ()> + Clone + Send 
 /// Broadcast a message to subscribers.
 ///
 /// Fire & forget, if an error occurs it will be silently discarded
+///
 pub struct Broadcast<M: BroadcastableMessage> {
     subscribers: Vec<Recipient<M>>,
 }
@@ -18,6 +19,15 @@ impl<M: BroadcastableMessage> Broadcast<M> {
         Broadcast {
             subscribers: Vec::new(),
         }
+    }
+}
+
+impl<M: BroadcastableMessage> SystemService for Broadcast<M> {}
+impl<M: BroadcastableMessage> Supervised for Broadcast<M> {}
+
+impl<M: BroadcastableMessage> Default for Broadcast<M> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

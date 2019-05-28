@@ -45,7 +45,6 @@ where
     R: BroadcastableMessage + Debug + MqttData,
 {
     sensor: Addr<A>,
-    sensor_services: Addr<Broadcast<R>>,
     read_interval: Duration,
     _error: PhantomData<E>,
     _response: PhantomData<R>,
@@ -57,22 +56,22 @@ where
     E: Error + 'static + Send,
     R: BroadcastableMessage + Debug + MqttData,
 {
-    pub fn new(
-        sensor: Addr<A>,
-        sensor_services: Addr<Broadcast<R>>,
-        read_interval: Duration,
-    ) -> Self {
+    pub fn new(sensor: Addr<A>, read_interval: Duration) -> Self {
         SensorReader {
             sensor,
-            sensor_services,
             read_interval,
             _error: PhantomData,
             _response: PhantomData,
         }
     }
 
-    fn send_to_services(&self, data: R) -> impl ActorFuture<Item = (), Error = (), Actor = Self> {
-        self.sensor_services
+    fn send_to_registered_listeners(
+        &self,
+        data: R,
+    ) -> impl ActorFuture<Item = (), Error = (), Actor = Self> {
+        System::current()
+            .registry()
+            .get::<Broadcast<R>>()
             .send(data)
             .map_err(|e| error!("Unable to send data to sensor services {}", e))
             .into_actor(self)
@@ -97,7 +96,7 @@ where
                 }
             })
             .and_then(|data: R, reader: &mut SensorReader<A, R, E>, ctx| {
-                reader.send_to_services(data)
+                reader.send_to_registered_listeners(data)
             })
             .spawn(ctx);
     }
