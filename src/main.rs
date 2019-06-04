@@ -22,7 +22,7 @@ mod mqtt;
 mod sensor;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "Flush memcache cluster")]
+#[structopt(name = "Reads MH-Z19 CO2 meter from serial and publish it to a MQTT topic")]
 struct Opt {
     /// print out some debugging information
     #[structopt(short = "d", long = "debug")]
