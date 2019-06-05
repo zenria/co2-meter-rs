@@ -12,9 +12,9 @@ pub struct RealMHZ19Sensor {
 }
 
 impl RealMHZ19Sensor {
-    pub fn new(serial_port: String) -> Self {
+    pub fn new(serial_port: String, serial_timeout: Duration) -> Self {
         let mut settings: SerialPortSettings = Default::default();
-        settings.timeout = Duration::from_millis(10);
+        settings.timeout = serial_timeout;
         // MH-Z19 serial settings
         settings.baud_rate = 9600;
         settings.parity = Parity::None;

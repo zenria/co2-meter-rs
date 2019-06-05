@@ -34,6 +34,9 @@ struct Opt {
     /// Sensor read interval in second
     #[structopt(short = "i", long = "read-interval", default_value = "60")]
     read_interval_secs: u64,
+    /// Serial read timeout in milliseconds
+    #[structopt(short = "t", long = "serial-timeout", default_value = "10")]
+    serial_timeout_ms: u64,
     /// History size kept for /debug endpoint
     #[structopt(short = "h", long = "history-size", default_value = "300")]
     debug_history_size: usize,
@@ -87,8 +90,14 @@ fn main() {
         sensor::SensorReader::new(SyncArbiter::start(1, || MockMHZ19Sensor), read_interval).start();
     } else {
         let serial_port = opt.serial_port.clone();
+        let serial_timeout_ms = opt.serial_timeout_ms;
         sensor::SensorReader::new(
-            SyncArbiter::start(1, move || RealMHZ19Sensor::new(serial_port.clone())),
+            SyncArbiter::start(1, move || {
+                RealMHZ19Sensor::new(
+                    serial_port.clone(),
+                    Duration::from_millis(serial_timeout_ms),
+                )
+            }),
             read_interval,
         )
         .start();
