@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use std::collections::vec_deque::VecDeque;
 use std::fmt;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::time::SystemTime;
 
 struct HistoryBucket<D> {
@@ -64,5 +64,11 @@ where
             data,
             timestamp: SystemTime::now(),
         });
+    }
+}
+
+impl<D: Debug> fmt::Display for DataStore<D> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{:#?}", self.history)
     }
 }

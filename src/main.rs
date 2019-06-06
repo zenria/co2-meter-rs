@@ -9,6 +9,8 @@ use std::time::Duration;
 use crate::mqtt::MqttConfig;
 use crate::sensor::mh_z19::{MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor};
 use env_logger::Env;
+use rouille::Response;
+use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
 
 mod datastore;
@@ -59,7 +61,9 @@ fn main() {
 
     let read_interval = Duration::from_secs(opt.read_interval_secs);
 
-    let mut data_store = datastore::DataStore::new(opt.debug_history_size);
+    let data_store = Arc::new(RwLock::new(datastore::DataStore::new(
+        opt.debug_history_size,
+    )));
     let mut mqtt_sender = {
         let mqtt_host = opt.mqtt_host.clone();
         let mqtt_port = opt.mqtt_port;
@@ -87,6 +91,25 @@ fn main() {
         "CO2 Meter started, reading sensor every {}s.",
         opt.read_interval_secs
     );
+
+    std::thread::Builder::new()
+        .name("HTTP Server Launcher".to_string())
+        .spawn({
+            let bind_address = opt.bind_address.clone();
+            let data_store = data_store.clone();
+            info!("Starting HTTP server on {}", bind_address);
+            move || {
+                rouille::start_server(bind_address, move |request| {
+                    info!("{} {}", request.method(), request.url());
+                    match request.url().as_str() {
+                        "/debug" => Response::text(format!("{}", data_store.read().unwrap())),
+                        _ => Response::empty_404(),
+                    }
+                })
+            }
+        })
+        .expect("Cannot start http server thread");
+
     loop {
         // if no data received during 10 read cycles, then let's throw an error and quit
         match data_receiver.recv_timeout(Duration::from_secs(opt.read_interval_secs * 10)) {
@@ -97,7 +120,7 @@ fn main() {
             Ok(data) => {
                 debug!("Read data {:?}", data);
                 // store the data
-                data_store.insert(data.clone());
+                data_store.write().unwrap().insert(data.clone());
                 mqtt_sender.send_data(data);
             }
         }
