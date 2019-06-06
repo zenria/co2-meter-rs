@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 #[macro_use]
 extern crate log;
 
@@ -121,8 +118,4 @@ fn main() {
             }
         }
     }
-
-    //debug!("Starting http server");
-
-    //http::launch_http_server(&opt.bind_address, data_store);
 }
