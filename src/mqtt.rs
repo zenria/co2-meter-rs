@@ -1,6 +1,14 @@
-use actix::prelude::*;
 use rumqtt::{MqttClient, MqttOptions, QoS, ReconnectOptions};
 use std::collections::HashMap;
+use std::fmt::Debug;
+
+pub trait MqttData {
+    /// Get the data to send to MQTT topics.
+    ///
+    /// Each value in the returned hashmap will be published
+    /// on the topic "base_topic" + "/" + "key"
+    fn get_data(&self) -> HashMap<String, Vec<u8>>;
+}
 
 pub struct MqttConfig {
     port: u16,
@@ -59,34 +67,16 @@ impl MqttSender {
             mqtt_client,
         }
     }
-}
 
-impl Actor for MqttSender {
-    type Context = SyncContext<Self>;
-}
-
-pub trait MqttData: Message<Result = ()> {
-    /// Get the data to send to MQTT topics.
-    ///
-    /// Each value in the returned hashmap will be published
-    /// on the topic "base_topic" + "/" + "key"
-    fn get_data(&self) -> HashMap<String, Vec<u8>>;
-}
-
-impl<D> Handler<D> for MqttSender
-where
-    D: MqttData + 'static,
-{
-    type Result = ();
-
-    fn handle(&mut self, msg: D, ctx: &mut Self::Context) -> Self::Result {
-        for (k, v) in msg.get_data() {
-            match self
-                .mqtt_client
-                .publish(self.config.get_topic(&k), QoS::AtLeastOnce, false, v)
+    pub fn send_data<D: MqttData + Debug>(&mut self, data: D) {
+        for (k, v) in data.get_data() {
+            if let Err(e) =
+                self.mqtt_client
+                    .publish(self.config.get_topic(&k), QoS::AtLeastOnce, false, v)
             {
-                Ok(_) => (),
-                Err(e) => error!("Unable to send metric {}", e),
+                error!("Unable to send metric {}", e);
+            } else {
+                debug!("Data sent to MQTT {:?}", data);
             }
         }
     }

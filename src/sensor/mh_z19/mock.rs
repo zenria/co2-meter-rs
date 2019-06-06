@@ -1,24 +1,24 @@
-use crate::sensor::mh_z19::{MHZ19Response, MHZ19SensorError};
-use crate::sensor::ReadMessage;
-use actix::prelude::*;
+use crate::sensor::mh_z19::{MHZ19Response, MHZ19Sensor};
+use crossbeam_channel::Receiver;
+use std::time::Duration;
 
 pub struct MockMHZ19Sensor;
 
-impl Actor for MockMHZ19Sensor {
-    type Context = SyncContext<MockMHZ19Sensor>;
-}
-
-impl Handler<ReadMessage<MHZ19Response, MHZ19SensorError>> for MockMHZ19Sensor {
-    type Result = Result<MHZ19Response, MHZ19SensorError>;
-
-    fn handle(
-        &mut self,
-        msg: ReadMessage<MHZ19Response, MHZ19SensorError>,
-        ctx: &mut Self::Context,
-    ) -> Self::Result {
-        Ok(MHZ19Response {
-            co2_concentration_ppm: 411,
-            serial_port: "__mock__".to_string(),
-        })
+impl MHZ19Sensor for MockMHZ19Sensor {
+    fn start(self, read_interval: Duration) -> Receiver<MHZ19Response> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        // spawn thread that never terminates
+        std::thread::Builder::new()
+            .name("Mock Sensor Read Thread".to_string())
+            .spawn(move || loop {
+                if let Err(e) = tx.send(MHZ19Response {
+                    co2_concentration_ppm: 411,
+                }) {
+                    error!("Unable to send mock values {}", e);
+                }
+                std::thread::sleep(read_interval);
+            })
+            .expect("Unable to create mock sensor read thread (WTF!)");
+        rx
     }
 }

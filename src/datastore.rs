@@ -1,4 +1,3 @@
-use actix::prelude::*;
 use chrono::prelude::*;
 use std::collections::vec_deque::VecDeque;
 use std::fmt;
@@ -57,7 +56,7 @@ where
             capacity,
         }
     }
-    fn insert(&mut self, data: D) {
+    pub fn insert(&mut self, data: D) {
         if self.history.len() == self.capacity {
             self.history.pop_front();
         }
@@ -65,38 +64,5 @@ where
             data,
             timestamp: SystemTime::now(),
         });
-    }
-}
-
-impl<D> Actor for DataStore<D>
-where
-    D: Debug + 'static,
-{
-    type Context = Context<Self>;
-}
-
-impl<D> Handler<D> for DataStore<D>
-where
-    D: Debug + 'static + Message<Result = ()>,
-{
-    type Result = ();
-
-    fn handle(&mut self, msg: D, ctx: &mut Self::Context) -> Self::Result {
-        self.insert(msg);
-    }
-}
-
-pub struct DebugHistory;
-impl Message for DebugHistory {
-    type Result = String;
-}
-impl<D> Handler<DebugHistory> for DataStore<D>
-where
-    D: Debug + 'static,
-{
-    type Result = String;
-
-    fn handle(&mut self, msg: DebugHistory, ctx: &mut Self::Context) -> Self::Result {
-        format!("{:#?}", self.history)
     }
 }

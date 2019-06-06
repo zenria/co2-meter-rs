@@ -3,21 +3,16 @@
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate error_chain;
 
 use std::time::Duration;
 
-use crate::broadcast::{Broadcast, RegisterRecipient};
 use crate::mqtt::MqttConfig;
-use crate::sensor::mh_z19::{MHZ19Response, MockMHZ19Sensor, RealMHZ19Sensor};
-use actix::prelude::*;
+use crate::sensor::mh_z19::{MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor};
 use env_logger::Env;
 use structopt::StructOpt;
 
-mod broadcast;
 mod datastore;
-mod http;
+//mod http;
 mod mqtt;
 mod sensor;
 
@@ -62,53 +57,53 @@ fn main() {
 
     debug!("Config {:?}", opt);
 
-    debug!("Starting actix");
-    let sys = System::new("guide");
-
-    debug!("Starting sensor actor");
     let read_interval = Duration::from_secs(opt.read_interval_secs);
-    let data_store = datastore::DataStore::new(opt.debug_history_size).start();
-    let mqtt_sender = {
+
+    let mut data_store = datastore::DataStore::new(opt.debug_history_size);
+    let mut mqtt_sender = {
         let mqtt_host = opt.mqtt_host.clone();
         let mqtt_port = opt.mqtt_port;
         let mqtt_base_topic = opt.mqtt_base_topic.clone();
-        SyncArbiter::start(1, move || {
-            mqtt::MqttSender::new(MqttConfig::new(
-                mqtt_host.clone(),
-                mqtt_port,
-                mqtt_base_topic.clone(),
-            ))
-        })
-    };
-    let sensor_data_listener_manager = System::current()
-        .registry()
-        .get::<Broadcast<MHZ19Response>>();
-    sensor_data_listener_manager.do_send(RegisterRecipient(mqtt_sender.recipient()));
-    sensor_data_listener_manager.do_send(RegisterRecipient(data_store.clone().recipient()));
 
-    if opt.mock_serial {
-        sensor::SensorReader::new(SyncArbiter::start(1, || MockMHZ19Sensor), read_interval).start();
+        mqtt::MqttSender::new(MqttConfig::new(
+            mqtt_host.clone(),
+            mqtt_port,
+            mqtt_base_topic.clone(),
+        ))
+    };
+
+    let data_receiver = if opt.mock_serial {
+        MockMHZ19Sensor.start(read_interval)
     } else {
         let serial_port = opt.serial_port.clone();
         let serial_timeout_ms = opt.serial_timeout_ms;
-        sensor::SensorReader::new(
-            SyncArbiter::start(1, move || {
-                RealMHZ19Sensor::new(
-                    serial_port.clone(),
-                    Duration::from_millis(serial_timeout_ms),
-                )
-            }),
-            read_interval,
+        RealMHZ19Sensor::new(
+            serial_port.clone(),
+            Duration::from_millis(serial_timeout_ms),
         )
-        .start();
-    }
-    debug!("Starting http server");
-
-    http::launch_http_server(&opt.bind_address, data_store);
-
+        .start(read_interval)
+    };
     info!(
         "CO2 Meter started, reading sensor every {}s.",
         opt.read_interval_secs
     );
-    let _ = sys.run();
+    loop {
+        // if no data received during 10 read cycles, then let's throw an error and quit
+        match data_receiver.recv_timeout(Duration::from_secs(opt.read_interval_secs * 10)) {
+            Err(timeout_error) => {
+                error!("No data received during 10 read cycle, please read the logs to find out the bug - {}!!", timeout_error);
+                std::process::exit(1);
+            }
+            Ok(data) => {
+                debug!("Read data {:?}", data);
+                // store the data
+                data_store.insert(data.clone());
+                mqtt_sender.send_data(data);
+            }
+        }
+    }
+
+    //debug!("Starting http server");
+
+    //http::launch_http_server(&opt.bind_address, data_store);
 }
