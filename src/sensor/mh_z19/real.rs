@@ -64,24 +64,22 @@ impl MHZ19Sensor for RealMHZ19Sensor {
             .spawn(move || {
                 let mut serial_buf: Vec<u8> = vec![0; 9];
                 loop {
-                    match &serial_port_r.read(serial_buf.as_mut_slice()) {
+                    match &serial_port_r.read_exact(serial_buf.as_mut_slice()) {
                         // general read error
                         Err(e) if e.kind() == ErrorKind::TimedOut => (),
                         // timeout: ignore & continue
                         Err(e) => error!("Unable to read serial port: {}", e),
                         // let's decode real data
-                        Ok(bytes_read) => {
-                            match mh_z19::get_gas_contentration_ppm(&serial_buf[..*bytes_read]) {
-                                Err(e) => error!("Error decoding recieved data: {}", e),
-                                Ok(co2_concentration_ppm) => {
-                                    if let Err(e) = tx.send(MHZ19Response {
-                                        co2_concentration_ppm,
-                                    }) {
-                                        error!("Error sending recieved data... {}", e);
-                                    }
+                        Ok(_) => match mh_z19::get_gas_contentration_ppm(&serial_buf) {
+                            Err(e) => error!("Error decoding recieved data: {}", e),
+                            Ok(co2_concentration_ppm) => {
+                                if let Err(e) = tx.send(MHZ19Response {
+                                    co2_concentration_ppm,
+                                }) {
+                                    error!("Error sending recieved data... {}", e);
                                 }
                             }
-                        }
+                        },
                     }
                 }
             })
