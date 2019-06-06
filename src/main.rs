@@ -32,7 +32,7 @@ struct Opt {
     #[structopt(short = "i", long = "read-interval", default_value = "60")]
     read_interval_secs: u64,
     /// Serial read timeout in milliseconds
-    #[structopt(short = "t", long = "serial-timeout", default_value = "10")]
+    #[structopt(short = "t", long = "serial-timeout", default_value = "200")]
     serial_timeout_ms: u64,
     /// History size kept for /debug endpoint
     #[structopt(short = "h", long = "history-size", default_value = "300")]
