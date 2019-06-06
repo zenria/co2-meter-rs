@@ -14,7 +14,6 @@ use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
 
 mod datastore;
-//mod http;
 mod mqtt;
 mod sensor;
 
