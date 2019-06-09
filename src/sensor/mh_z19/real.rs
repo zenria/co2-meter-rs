@@ -1,5 +1,5 @@
 use crate::sensor::mh_z19::{MHZ19Command, MHZ19Response, MHZ19Sensor};
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender};
 use serialport::prelude::*;
 use serialport::{DataBits, Parity, SerialPortSettings, StopBits};
 use std::io::{ErrorKind, Write};
@@ -35,8 +35,8 @@ impl MHZ19Sensor for RealMHZ19Sensor {
         // Spawn 2 threads:
         //  - write read gas command thread periodically
         //  - read serial data loop
-        let (tx_data, rx_data) = crossbeam_channel::bounded(1);
-        let (tx_cmd, rx_cmd) = crossbeam_channel::bounded(1);
+        let (tx_data, rx_data) = crossbeam::channel::bounded(1);
+        let (tx_cmd, rx_cmd) = crossbeam::channel::bounded(1);
         // ----- Write thread
         let mut serial_port_w = self
             .opened_port

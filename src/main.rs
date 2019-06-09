@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::mqtt::MqttConfig;
 use crate::sensor::mh_z19::{MHZ19Command, MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor};
-use crossbeam_channel::Sender;
+use crossbeam::channel::Sender;
 use env_logger::Env;
 use rouille::Response;
 use std::sync::{Arc, RwLock};

@@ -3,7 +3,7 @@ mod real;
 pub use self::mock::MockMHZ19Sensor;
 pub use self::real::RealMHZ19Sensor;
 use crate::mqtt::MqttData;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender};
 use std::collections::HashMap;
 
 pub trait MHZ19Sensor {
