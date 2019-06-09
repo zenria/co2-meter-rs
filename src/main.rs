@@ -7,7 +7,8 @@ extern crate log;
 use std::time::Duration;
 
 use crate::mqtt::MqttConfig;
-use crate::sensor::mh_z19::{MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor};
+use crate::sensor::mh_z19::{MHZ19Command, MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor};
+use crossbeam_channel::Sender;
 use env_logger::Env;
 use rouille::Response;
 use std::sync::{Arc, RwLock};
@@ -72,8 +73,8 @@ fn main() {
         ))
     };
 
-    let data_receiver = if opt.mock_serial {
-        MockMHZ19Sensor.start(read_interval)
+    let (cmd_sender, data_receiver) = if opt.mock_serial {
+        MockMHZ19Sensor.start()
     } else {
         let serial_port = opt.serial_port.clone();
         let serial_timeout_secs = opt.read_interval_secs;
@@ -81,8 +82,12 @@ fn main() {
             serial_port.clone(),
             Duration::from_secs(serial_timeout_secs),
         )
-        .start(read_interval)
+        .start()
     };
+    launch_read_gas_timer_thread(
+        cmd_sender.clone(),
+        Duration::from_secs(opt.read_interval_secs),
+    );
     info!(
         "CO2 Meter started, reading sensor every {}s.",
         opt.read_interval_secs
@@ -99,6 +104,20 @@ fn main() {
                     info!("{} {}", request.method(), request.url());
                     match request.url().as_str() {
                         "/debug" => Response::text(format!("{}", data_store.read().unwrap())),
+                        "/cmd/zero" => match cmd_sender.send(MHZ19Command::CalibrateZero) {
+                            Ok(_) => Response::text("Calibrate Zero Point command sent!"),
+                            Err(e) => {
+                                error!("Unable to send command - {}", e);
+                                Response::text("An error occured!").with_status_code(500)
+                            }
+                        },
+                        "/cmd/read" => match cmd_sender.send(MHZ19Command::Read) {
+                            Ok(_) => Response::text("Read command sent!"),
+                            Err(e) => {
+                                error!("Unable to send command - {}", e);
+                                Response::text("An error occured!").with_status_code(500)
+                            }
+                        },
                         _ => Response::empty_404(),
                     }
                 })
@@ -125,4 +144,16 @@ fn main() {
     //debug!("Starting http server");
 
     //http::launch_http_server(&opt.bind_address, data_store);
+}
+
+fn launch_read_gas_timer_thread(cmd_sender: Sender<MHZ19Command>, read_interval: Duration) {
+    std::thread::Builder::new()
+        .name("gas timer thread".to_string())
+        .spawn(move || loop {
+            if let Err(_) = cmd_sender.send(MHZ19Command::Read) {
+                return; // Closed channel
+            }
+            std::thread::sleep(read_interval);
+        })
+        .unwrap();
 }
