@@ -70,7 +70,7 @@ impl MHZ19Sensor for RealMHZ19Sensor {
                         // timeout: ignore & continue
                         Err(e) => error!("Unable to read serial port: {}", e),
                         // let's decode real data
-                        Ok(_) => match mh_z19::get_gas_contentration_ppm(&serial_buf) {
+                        Ok(_) => match mh_z19::parse_gas_contentration_ppm(&serial_buf) {
                             Err(e) => error!("Error decoding recieved data: {}", e),
                             Ok(co2_concentration_ppm) => {
                                 if let Err(e) = tx.send(MHZ19Response {

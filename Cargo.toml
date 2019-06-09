@@ -8,7 +8,7 @@ repository = "https://github.com/zenria/co2-meter-rs"
 [dependencies]
 serialport = { git = "https://github.com/zenria/serialport-rs.git", branch="3.2.0-hacked_for_rbpi" }
 clap = "2"
-mh-z19 = "0.1.0"
+mh-z19 = "0.2.0"
 log = "0.4"
 env_logger = "0.6"
 structopt = "0.2"
