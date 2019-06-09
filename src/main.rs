@@ -6,8 +6,11 @@ extern crate log;
 
 use std::time::Duration;
 
+use crate::datastore::DataStore;
 use crate::mqtt::MqttConfig;
-use crate::sensor::mh_z19::{MHZ19Command, MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor};
+use crate::sensor::mh_z19::{
+    MHZ19Command, MHZ19Response, MHZ19Sensor, MockMHZ19Sensor, RealMHZ19Sensor,
+};
 use crossbeam::channel::Sender;
 use env_logger::Env;
 use rouille::Response;
@@ -93,37 +96,7 @@ fn main() {
         opt.read_interval_secs
     );
 
-    std::thread::Builder::new()
-        .name("HTTP Server Launcher".to_string())
-        .spawn({
-            let bind_address = opt.bind_address.clone();
-            let data_store = data_store.clone();
-            info!("Starting HTTP server on {}", bind_address);
-            move || {
-                rouille::start_server(bind_address, move |request| {
-                    info!("{} {}", request.method(), request.url());
-                    match request.url().as_str() {
-                        "/debug" => Response::text(format!("{}", data_store.read().unwrap())),
-                        "/cmd/zero" => match cmd_sender.send(MHZ19Command::CalibrateZero) {
-                            Ok(_) => Response::text("Calibrate Zero Point command sent!"),
-                            Err(e) => {
-                                error!("Unable to send command - {}", e);
-                                Response::text("An error occured!").with_status_code(500)
-                            }
-                        },
-                        "/cmd/read" => match cmd_sender.send(MHZ19Command::Read) {
-                            Ok(_) => Response::text("Read command sent!"),
-                            Err(e) => {
-                                error!("Unable to send command - {}", e);
-                                Response::text("An error occured!").with_status_code(500)
-                            }
-                        },
-                        _ => Response::empty_404(),
-                    }
-                })
-            }
-        })
-        .expect("Cannot start http server thread");
+    launch_http_server(&opt, data_store.clone(), cmd_sender);
 
     loop {
         // if no data received during 10 read cycles, then let's throw an error and quit
@@ -140,10 +113,49 @@ fn main() {
             }
         }
     }
+}
 
-    //debug!("Starting http server");
+fn launch_http_server(
+    opt: &Opt,
+    data_store: Arc<RwLock<DataStore<MHZ19Response>>>,
+    cmd_sender: Sender<MHZ19Command>,
+) {
+    std::thread::Builder::new()
+        .name("HTTP Server Launcher".to_string())
+        .spawn({
+            let bind_address = opt.bind_address.clone();
+            info!("Starting HTTP server on {}", bind_address);
+            move || {
+                rouille::start_server(bind_address, move |request| {
+                    info!("{} {}", request.method(), request.url());
+                    match request.url().as_str() {
+                        "/debug" => Response::text(format!("{}", data_store.read().unwrap())),
+                        "/cmd/zero" => send_command(MHZ19Command::CalibrateZero, &cmd_sender),
+                        "/cmd/abc/enable" => send_command(
+                            MHZ19Command::SetAutomaticBaselineCorrection { enabled: true },
+                            &cmd_sender,
+                        ),
+                        "/cmd/abc/disable" => send_command(
+                            MHZ19Command::SetAutomaticBaselineCorrection { enabled: false },
+                            &cmd_sender,
+                        ),
+                        "/cmd/read" => send_command(MHZ19Command::Read, &cmd_sender),
+                        _ => Response::empty_404(),
+                    }
+                })
+            }
+        })
+        .expect("Cannot start http server thread");
+}
 
-    //http::launch_http_server(&opt.bind_address, data_store);
+fn send_command(command: MHZ19Command, cmd_sender: &Sender<MHZ19Command>) -> Response {
+    match cmd_sender.send(command) {
+        Ok(_) => Response::text(format!("{:?} sent!", command)),
+        Err(e) => {
+            error!("Unable to send command - {}", e);
+            Response::text("An error occured!").with_status_code(500)
+        }
+    }
 }
 
 fn launch_read_gas_timer_thread(cmd_sender: Sender<MHZ19Command>, read_interval: Duration) {

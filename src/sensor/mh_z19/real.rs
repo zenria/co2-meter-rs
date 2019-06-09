@@ -57,7 +57,26 @@ impl MHZ19Sensor for RealMHZ19Sensor {
                                 );
                             }
                         }
-                        other => info!("Received command: {:?}", other),
+                        MHZ19Command::CalibrateZero => {
+                            if let Err(e) =
+                                serial_port_w.write_all(&mh_z19::calibrate_zero_point(1))
+                            {
+                                error!(
+                                    "Unable to write 'calibrate zero' to the serial port: {}",
+                                    e
+                                );
+                            }
+                        }
+                        MHZ19Command::SetAutomaticBaselineCorrection {enabled} => {
+                            if let Err(e) =
+                            serial_port_w.write_all(&mh_z19::set_automatic_baseline_correction(1, enabled))
+                            {
+                                error!(
+                                    "Unable to write 'set automatic baseline correction command' to the serial port: {}",
+                                    e
+                                );
+                            }
+                        }
                     },
                     Err(e) => return, // channel disconnected
                 }

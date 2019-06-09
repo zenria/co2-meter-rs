@@ -14,7 +14,7 @@ pub trait MHZ19Sensor {
 pub struct MHZ19Response {
     pub co2_concentration_ppm: u32,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum MHZ19Command {
     CalibrateZero,
     SetAutomaticBaselineCorrection { enabled: bool },
