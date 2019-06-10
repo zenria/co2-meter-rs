@@ -1,5 +1,5 @@
-use crate::sensor::mh_z19::{MHZ19Response, MHZ19Sensor};
-use crossbeam_channel::Receiver;
+use crate::sensor::mh_z19::{MHZ19Command, MHZ19Response, MHZ19Sensor};
+use crossbeam::channel::{Receiver, Sender};
 use serialport::prelude::*;
 use serialport::{DataBits, Parity, SerialPortSettings, StopBits};
 use std::io::{ErrorKind, Write};
@@ -31,11 +31,12 @@ impl RealMHZ19Sensor {
 }
 
 impl MHZ19Sensor for RealMHZ19Sensor {
-    fn start(self, read_interval: Duration) -> Receiver<MHZ19Response> {
+    fn start(self) -> (Sender<MHZ19Command>, Receiver<MHZ19Response>) {
         // Spawn 2 threads:
         //  - write read gas command thread periodically
         //  - read serial data loop
-
+        let (tx_data, rx_data) = crossbeam::channel::bounded(1);
+        let (tx_cmd, rx_cmd) = crossbeam::channel::bounded(1);
         // ----- Write thread
         let mut serial_port_w = self
             .opened_port
@@ -44,20 +45,45 @@ impl MHZ19Sensor for RealMHZ19Sensor {
         thread::Builder::new()
             .name("MHZ19 Command Write Thread".to_string())
             .spawn(move || loop {
-                if let Err(e) =
-                    serial_port_w.write_all(mh_z19::READ_GAS_CONCENTRATION_COMMAND_ON_DEV1_PACKET)
-                {
-                    error!(
-                        "Unable to write 'read gas command' to the serial port: {}",
-                        e
-                    );
+                match rx_cmd.recv() {
+                    Ok(cmd) => match cmd {
+                        MHZ19Command::Read => {
+                            if let Err(e) = serial_port_w
+                                .write_all(mh_z19::READ_GAS_CONCENTRATION_COMMAND_ON_DEV1_PACKET)
+                            {
+                                error!(
+                                    "Unable to write 'read gas command' to the serial port: {}",
+                                    e
+                                );
+                            }
+                        }
+                        MHZ19Command::CalibrateZero => {
+                            if let Err(e) =
+                                serial_port_w.write_all(&mh_z19::calibrate_zero_point(1))
+                            {
+                                error!(
+                                    "Unable to write 'calibrate zero' to the serial port: {}",
+                                    e
+                                );
+                            }
+                        }
+                        MHZ19Command::SetAutomaticBaselineCorrection {enabled} => {
+                            if let Err(e) =
+                            serial_port_w.write_all(&mh_z19::set_automatic_baseline_correction(1, enabled))
+                            {
+                                error!(
+                                    "Unable to write 'set automatic baseline correction command' to the serial port: {}",
+                                    e
+                                );
+                            }
+                        }
+                    },
+                    Err(e) => return, // channel disconnected
                 }
-                thread::sleep(read_interval);
             })
             .expect("Unable to create serial write thread");
 
         // ----- read Thread
-        let (tx, rx) = crossbeam_channel::bounded(1);
         let mut serial_port_r = self.opened_port;
         thread::Builder::new()
             .name("MHZ19 Read Thread".to_string())
@@ -70,10 +96,10 @@ impl MHZ19Sensor for RealMHZ19Sensor {
                         // timeout: ignore & continue
                         Err(e) => error!("Unable to read serial port: {}", e),
                         // let's decode real data
-                        Ok(_) => match mh_z19::get_gas_contentration_ppm(&serial_buf) {
+                        Ok(_) => match mh_z19::parse_gas_contentration_ppm(&serial_buf) {
                             Err(e) => error!("Error decoding recieved data: {}", e),
                             Ok(co2_concentration_ppm) => {
-                                if let Err(e) = tx.send(MHZ19Response {
+                                if let Err(e) = tx_data.send(MHZ19Response {
                                     co2_concentration_ppm,
                                 }) {
                                     error!("Error sending recieved data... {}", e);
@@ -85,6 +111,6 @@ impl MHZ19Sensor for RealMHZ19Sensor {
             })
             .expect("Unable to create serial read thread");
 
-        rx
+        (tx_cmd, rx_data)
     }
 }

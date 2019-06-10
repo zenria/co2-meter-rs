@@ -3,16 +3,22 @@ mod real;
 pub use self::mock::MockMHZ19Sensor;
 pub use self::real::RealMHZ19Sensor;
 use crate::mqtt::MqttData;
+use crossbeam::channel::{Receiver, Sender};
 use std::collections::HashMap;
-use std::time::Duration;
 
 pub trait MHZ19Sensor {
-    fn start(self, read_interval: Duration) -> crossbeam_channel::Receiver<MHZ19Response>;
+    fn start(self) -> (Sender<MHZ19Command>, Receiver<MHZ19Response>);
 }
 
 #[derive(Debug, Clone)]
 pub struct MHZ19Response {
     pub co2_concentration_ppm: u32,
+}
+#[derive(Debug, Copy, Clone)]
+pub enum MHZ19Command {
+    CalibrateZero,
+    SetAutomaticBaselineCorrection { enabled: bool },
+    Read,
 }
 
 // needed to send data over mqtt
