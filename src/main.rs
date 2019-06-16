@@ -17,9 +17,12 @@ use rouille::Response;
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
 
+mod broadcast_channel;
 mod datastore;
 mod mqtt;
 mod sensor;
+
+use crate::broadcast_channel::OneShotBroadcastReceiver;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Reads MH-Z19 CO2 meter from serial and publish it to a MQTT topic")]
@@ -96,7 +99,9 @@ fn main() {
         opt.read_interval_secs
     );
 
-    launch_http_server(&opt, data_store.clone(), cmd_sender);
+    let data_receiver = Arc::new(OneShotBroadcastReceiver::from(data_receiver));
+
+    launch_http_server(&opt, data_store.clone(), cmd_sender, data_receiver.clone());
 
     loop {
         // if no data received during 10 read cycles, then let's throw an error and quit
@@ -119,6 +124,7 @@ fn launch_http_server(
     opt: &Opt,
     data_store: Arc<RwLock<DataStore<MHZ19Response>>>,
     cmd_sender: Sender<MHZ19Command>,
+    receiver: Arc<OneShotBroadcastReceiver<MHZ19Response>>,
 ) {
     std::thread::Builder::new()
         .name("HTTP Server Launcher".to_string())
@@ -139,7 +145,18 @@ fn launch_http_server(
                             MHZ19Command::SetAutomaticBaselineCorrection { enabled: false },
                             &cmd_sender,
                         ),
-                        "/cmd/read" => send_command(MHZ19Command::Read, &cmd_sender),
+                        "/cmd/read" => {
+                            send_command(MHZ19Command::Read, &cmd_sender);
+                            if let Ok(r) = receiver
+                                .oneshot_receiver()
+                                .recv_timeout(Duration::from_secs(1))
+                            {
+                                Response::text(format!("Value read {}", r.co2_concentration_ppm))
+                            } else {
+                                // 500 error
+                                Response::text("Timeout!").with_status_code(503)
+                            }
+                        }
                         _ => Response::empty_404(),
                     }
                 })
