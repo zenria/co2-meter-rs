@@ -10,33 +10,27 @@ pub struct OneShotBroadcastReceiver<T> {
 
 impl<T: Clone> OneShotBroadcastReceiver<T> {
     pub fn recv_timeout(&self, timeout: Duration) -> Result<T, RecvTimeoutError> {
-        let ret = self.inner.recv_timeout(timeout)?;
-
-        loop {
-            match self.senders.pop() {
-                Ok(sender) => {
-                    // broadcast ignoring unconnected or full subscribed receiver
-                    let _r = sender.try_send(ret.clone());
-                }
-                Err(_) => break,
-            }
-        }
-        Ok(ret)
+        let msg = self.inner.recv_timeout(timeout)?;
+        self.broadcast_to_oneshot_receivers(&msg);
+        Ok(msg)
     }
 
     pub fn recv(&self) -> Result<T, RecvError> {
-        let ret = self.inner.recv()?;
+        let msg = self.inner.recv()?;
+        self.broadcast_to_oneshot_receivers(&msg);
+        Ok(msg)
+    }
 
+    fn broadcast_to_oneshot_receivers(&self, msg: &T) {
         loop {
             match self.senders.pop() {
                 Ok(sender) => {
                     // broadcast ignoring unconnected or full subscribed receiver
-                    let _r = sender.try_send(ret.clone());
+                    let _r = sender.try_send(msg.clone());
                 }
                 Err(_) => break,
             }
         }
-        Ok(ret)
     }
 
     pub fn oneshot_receiver(&self) -> Receiver<T> {
