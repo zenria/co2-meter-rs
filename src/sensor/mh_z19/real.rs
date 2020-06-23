@@ -1,5 +1,6 @@
 use crate::sensor::mh_z19::{MHZ19Command, MHZ19Response, MHZ19Sensor};
 use crossbeam::channel::{Receiver, Sender};
+use mh_z19::read_gas_concentration;
 use serialport::prelude::*;
 use serialport::{DataBits, Parity, SerialPortSettings, StopBits};
 use std::io::{ErrorKind, Write};
@@ -7,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 pub struct RealMHZ19Sensor {
-    opened_port: Box<SerialPort>,
+    opened_port: Box<dyn SerialPort>,
 }
 
 impl RealMHZ19Sensor {
@@ -49,7 +50,7 @@ impl MHZ19Sensor for RealMHZ19Sensor {
                     Ok(cmd) => match cmd {
                         MHZ19Command::Read => {
                             if let Err(e) = serial_port_w
-                                .write_all(mh_z19::READ_GAS_CONCENTRATION_COMMAND_ON_DEV1_PACKET)
+                                .write_all(&read_gas_concentration(1))
                             {
                                 error!(
                                     "Unable to write 'read gas command' to the serial port: {}",
