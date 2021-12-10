@@ -13,6 +13,7 @@ use crate::sensor::mh_z19::{
 };
 use crossbeam::channel::Sender;
 use env_logger::Env;
+use log::LevelFilter;
 use rouille::Response;
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
@@ -53,12 +54,13 @@ struct Opt {
 
 fn main() {
     let opt: Opt = Opt::from_args();
-    env_logger::from_env(Env::default().default_filter_or(if opt.debug {
-        "debug"
-    } else {
-        "info"
-    }))
-    .init();
+    env_logger::Builder::from_default_env()
+        .filter_level(if opt.debug {
+            LevelFilter::Debug
+        } else {
+            LevelFilter::Info
+        })
+        .init();
 
     debug!("Config {:?}", opt);
 
